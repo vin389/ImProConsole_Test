@@ -4,7 +4,7 @@
 #include "pickAPoint.h"
 
 // TEST
-
+// TEST 2
 
 int CamMoveCorrector::pickInitFixedPoint(int numFixedPoints)
 {
