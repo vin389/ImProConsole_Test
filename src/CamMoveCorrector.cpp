@@ -3,6 +3,7 @@
 #include "impro_util.h"
 #include "pickAPoint.h"
 
+// TEST
 
 
 int CamMoveCorrector::pickInitFixedPoint(int numFixedPoints)
