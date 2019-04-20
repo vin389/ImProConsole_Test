@@ -15,8 +15,11 @@ The current version available here is designed to be available with a
 journal paper under review.
 
 Related videos available: 
+
 NCREE 2017 Test 2 Camera 1: https://youtu.be/wa5aQt3N3ss
+
 NCREE 2017 Test 2 Camera 5: https://youtu.be/ZffCg4WMJm8
+
 NCREE 2006 Brick-wall Test - wall deformation: https://www.youtube.com/tv#/watch?v=jUtetPsKjIc
 
 
