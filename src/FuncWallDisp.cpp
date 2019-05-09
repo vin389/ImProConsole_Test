@@ -70,7 +70,7 @@ int FuncWallDisp(int argc, char ** argv)
 	//	cam.grab();
 	//	cam.retrieve(img); 
 	//	char buf[1000];
-	//	sprintf_s(buf, 1000, "Set FOCUS to %8.2f", f); 
+    //	snprintf(buf, 1000, "Set FOCUS to %8.2f", f);
 	//	cv::putText(img, buf, cv::Point(100, 100), cv::FONT_HERSHEY_PLAIN, 3.0, cv::Scalar(13, 23,227)); 
 	//	cv::imshow("TRYING FOCUS", img); 
 	//	int key1 = 0;
@@ -194,7 +194,7 @@ int FuncWallDisp(int argc, char ** argv)
 					if (readRetVal == true && imgInitOri[i].cols > 0 && imgInitOri[i].rows > 0)
 					{
 						cout << "CAP_PROP_FOCUS of " << cam_id << ": " << usbCam[i].get(cv::CAP_PROP_FOCUS) << endl;
-						sprintf_s(buf, 1000, "%d (%d x %d)", cam_id, w, h);
+                        snprintf(buf, 1000, "%d (%d x %d)", cam_id, w, h);
 						imshow_resize("VideoCapture " + string(buf), imgInitOri[i], 0.25);
 					}
 					usbCam[i].release(); 
@@ -418,13 +418,14 @@ int FuncWallDisp(int argc, char ** argv)
 			else 
 				imgPrev[iCam] = imgCurr[iCam];
 			// guessed points
+			int guessOrder = 2; // if guessOrder == 1, linear extrapolation; if guessOrder == 2, 2nd order extrapolation
 			if (iStep == 0) {
 				// for iStep == 0, guessed point is the user defined target points
 				for (int iPoint = 0; iPoint < n12 * n23; iPoint++) {
 					guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint) = manyPointsDistorted[iCam].get(iStep, iPoint);
 				}
 			}
-			else { // for iStep >= 1, guessed point is the previous points (here we use previous template matched points)
+			else if (iStep == 1) { // for iStep == 1, guessed point is the previous points 
 				for (int iPoint = 0; iPoint < n12 * n23; iPoint++) {
 					if (tmt_on > 0)
 						guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint) = TMatchPoints[iCam].get(iStep - 1, iPoint); 
@@ -437,6 +438,50 @@ int FuncWallDisp(int argc, char ** argv)
 						cerr << "You disabled all tracking methods.\n";
 						return -1; 
 					}
+				}
+			}
+			else if (iStep == 2 || guessOrder <= 1) { // for iStep == 2, use linear extrapolation
+				for (int iPoint = 0; iPoint < n12 * n23; iPoint++) {
+					if (tmt_on > 0)
+						guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint) = 2 * TMatchPoints[iCam].get(iStep - 1, iPoint) - TMatchPoints[iCam].get(iStep - 2, iPoint);
+					else if (opt_on > 0)
+						guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint) = 2 * OptPoints[iCam].get(iStep - 1, iPoint) - OptPoints[iCam].get(iStep - 2, iPoint);
+					else if (ecc_on > 0)
+						guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint) = 2 * EccPoints[iCam].get(iStep - 1, iPoint) - EccPoints[iCam].get(iStep - 1, iPoint);
+					else
+					{
+						cerr << "You disabled all tracking methods.\n";
+						return -1;
+					}
+				}
+			}
+			else { // for iStep >= 3, use 2nd order extrapolation
+				for (int iPoint = 0; iPoint < n12 * n23; iPoint++) {
+					cv::Point2f p0, p1, p2;
+					if (tmt_on > 0) {
+						p2 = TMatchPoints[iCam].get(iStep - 1, iPoint);
+						p1 = TMatchPoints[iCam].get(iStep - 2, iPoint);
+						p0 = TMatchPoints[iCam].get(iStep - 3, iPoint);
+					}
+					else if (opt_on > 0) {
+						p2 = OptPoints[iCam].get(iStep - 1, iPoint);
+						p1 = OptPoints[iCam].get(iStep - 2, iPoint);
+						p0 = OptPoints[iCam].get(iStep - 3, iPoint);
+					}
+					else if (ecc_on > 0) {
+						p2 = EccPoints[iCam].get(iStep - 1, iPoint);
+						p1 = EccPoints[iCam].get(iStep - 2, iPoint);
+						p0 = EccPoints[iCam].get(iStep - 3, iPoint);
+					}
+					else
+					{
+						cerr << "You disabled all tracking methods.\n";
+						return -1;
+					}
+					//guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint).x = 2 * p2.x - p1.x + 0.5f * powf(p2.x - 2 * p1.x + p0.x, 2);
+					//guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint).y = 2 * p2.y - p1.y + 0.5f * powf(p2.y - 2 * p1.y + p0.y, 2);
+					guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint).x = p0.x - 3 * p1.x + 3 * p2.x; 
+					guessedImgPoints[iCam].at<cv::Point2f>(0, iPoint).y = p0.y - 3 * p1.y + 3 * p2.y;;
 				}
 			}
 
@@ -747,32 +792,32 @@ int FuncWallDisp(int argc, char ** argv)
 		char buf[1000]; 
 		for (int iCam = 0; iCam < 2; iCam++)
 		{
-			sprintf_s(buf, 1000, "%sTMatchImgPoints_Step%04d_Cam%01d.m",
+            snprintf(buf, 1000, "%sTMatchImgPoints_Step%04d_Cam%01d.m",
 				outputDirectory.c_str(), iStep + 1, iCam + 1); 
 			if (tmt_on > 0)
 				TMatchPoints[iCam].writeScriptMatAdvanced(
 					buf, fnameImgInit[iCam], false, 1, 1 /* only data */, iStep);
-			sprintf_s(buf, 1000, "%sEccImgPoints_Step%04d_Cam%01d.m",
+            snprintf(buf, 1000, "%sEccImgPoints_Step%04d_Cam%01d.m",
 				outputDirectory.c_str(), iStep + 1, iCam + 1);
 			if (ecc_on > 0)
 				EccPoints[iCam].writeScriptMatAdvanced(
 					buf, fnameImgInit[iCam], false, 1, 1 /* only data */, iStep);
-			sprintf_s(buf, 1000, "%sOptImgPoints_Step%04d_Cam%01d.m",
+            snprintf(buf, 1000, "%sOptImgPoints_Step%04d_Cam%01d.m",
 				outputDirectory.c_str(), iStep + 1, iCam + 1);
 			if (opt_on > 0)
 				OptPoints[iCam].writeScriptMatAdvanced(
 					buf, fnameImgInit[iCam], false, 1, 1 /* only data */, iStep);
 		}
 		// output 3d points
-		sprintf_s(buf, 1000, "%sTMatch3dPoints_Step%04d.m",
+        snprintf(buf, 1000, "%sTMatch3dPoints_Step%04d.m",
 			outputDirectory.c_str(), iStep + 1);
 		if (tmt_on > 0)
 			TMatchPoints3d.writeScriptMatAdvanced(buf, true, 1, 1 /* only data */, iStep);
-		sprintf_s(buf, 1000, "%sEcc3dPoints_Step%04d.m",
+        snprintf(buf, 1000, "%sEcc3dPoints_Step%04d.m",
 			outputDirectory.c_str(), iStep + 1);
 		if (ecc_on > 0)
 			EccPoints3d.writeScriptMatAdvanced(buf, true, 1, 1 /* only data */, iStep);
-		sprintf_s(buf, 1000, "%sOpt3dPoints_Step%04d.m",
+        snprintf(buf, 1000, "%sOpt3dPoints_Step%04d.m",
 			outputDirectory.c_str(), iStep + 1);
 		if (opt_on > 0)
 			OptPoints3d.writeScriptMatAdvanced(buf, true, 1, 1 /* only data */, iStep);
